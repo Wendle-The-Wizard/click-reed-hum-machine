@@ -17,4 +17,6 @@ canvas {
   height: auto;
   border-radius: 12px;
   background: #1d3040;
+  touch-action: manipulation;
+  cursor: pointer;
 }
