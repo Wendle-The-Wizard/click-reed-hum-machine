@@ -1,4 +1,4 @@
-// Step 3: every reed hums its own note!
+// Step 4: a soft swaying glow while a reed hums!
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
 
@@ -18,7 +18,9 @@ for (let i = 0; i < COUNT; i++) {
     height: LONGEST - (LONGEST - SHORTEST) * t,
     x: 50 + i * ((canvas.width - 100) / (COUNT - 1)),
     freq: LOWEST_HZ * Math.pow(2, STEPS[i] / 12),
-    wiggle: 0 // 1 right after a click, fades to 0
+    wiggle: 0, // 1 right after a click, fades to 0
+    glow: 0,   // lasts longer than the wiggle, fades slowly
+    phase: i * 0.7 // so the glows don't all sway in step
   });
 }
 
@@ -49,14 +51,29 @@ function hum(freq) {
   });
 }
 
+function drawGlow(r, tx) {
+  if (r.glow <= 0.01) return;
+  const time = performance.now() / 1000;
+  // the glow drifts side to side and gently breathes
+  const gx = tx + Math.sin(time * 2.2 + r.phase) * 10 * r.glow;
+  const gy = BASE_Y - r.height * (0.55 + 0.1 * Math.sin(time * 1.6 + r.phase));
+  const rad = 60 + 14 * Math.sin(time * 3 + r.phase);
+  const g = ctx.createRadialGradient(gx, gy, 2, gx, gy, rad);
+  g.addColorStop(0, 'rgba(210,255,150,' + (0.45 * r.glow) + ')');
+  g.addColorStop(1, 'rgba(210,255,150,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(gx - rad, gy - rad, rad * 2, rad * 2);
+}
+
 function drawReed(r) {
   const topY = BASE_Y - r.height;
   const w = 16;
   // sway sideways at the top, more when wiggling
   const sway = Math.sin(performance.now() / 45) * 12 * r.wiggle * (r.height / LONGEST + 0.4);
   const tx = r.x + sway;
+  drawGlow(r, tx);
   const g = ctx.createLinearGradient(r.x - w, 0, r.x + w, 0);
-  const bright = r.wiggle > 0.01;
+  const bright = r.glow > 0.01;
   g.addColorStop(0, '#4f7a3a');
   g.addColorStop(0.5, bright ? '#c6f080' : '#8fbf5a');
   g.addColorStop(1, '#4f7a3a');
@@ -87,6 +104,10 @@ function draw() {
       r.wiggle = Math.max(0, r.wiggle - 0.015);
       busy = true;
     }
+    if (r.glow > 0) {
+      r.glow = Math.max(0, r.glow - 0.006);
+      busy = true;
+    }
   });
   if (busy) requestAnimationFrame(draw);
   else running = false;
@@ -113,7 +134,7 @@ canvas.addEventListener('pointerdown', e => {
   const px = (e.clientX - rect.left) * canvas.width / rect.width;
   const py = (e.clientY - rect.top) * canvas.height / rect.height;
   const r = reedAt(px, py);
-  if (r) { r.wiggle = 1; hum(r.freq); kick(); }
+  if (r) { r.wiggle = 1; r.glow = 1; hum(r.freq); kick(); }
 });
 
 draw();
