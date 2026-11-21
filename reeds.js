@@ -1,4 +1,4 @@
-// Step 2: reeds react to clicks! (Sound comes in step 3.)
+// Step 3: every reed hums its own note!
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
 
@@ -7,13 +7,45 @@ const LONGEST = 300;
 const SHORTEST = 90;
 const BASE_Y = canvas.height - 40;
 
+// A pentatonic scale (in semitones above the lowest note) so it always sounds friendly
+const STEPS = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26];
+const LOWEST_HZ = 98; // the deepest reed, about a low G
+
 const reeds = [];
 for (let i = 0; i < COUNT; i++) {
   const t = i / (COUNT - 1);
   reeds.push({
     height: LONGEST - (LONGEST - SHORTEST) * t,
     x: 50 + i * ((canvas.width - 100) / (COUNT - 1)),
+    freq: LOWEST_HZ * Math.pow(2, STEPS[i] / 12),
     wiggle: 0 // 1 right after a click, fades to 0
+  });
+}
+
+// Sound: made on the first click, because browsers want a user gesture first
+let audio = null;
+function hum(freq) {
+  if (!audio) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audio = new AC();
+  }
+  if (audio.state === 'suspended') audio.resume();
+  const now = audio.currentTime;
+  const out = audio.createGain();
+  out.gain.setValueAtTime(0.0001, now);
+  out.gain.exponentialRampToValueAtTime(0.35, now + 0.04);
+  out.gain.exponentialRampToValueAtTime(0.0001, now + 1.6);
+  out.connect(audio.destination);
+  // two slightly different waves make a reedy, humming buzz
+  [['triangle', 0], ['sine', 4]].forEach(([type, detune]) => {
+    const o = audio.createOscillator();
+    o.type = type;
+    o.frequency.value = freq;
+    o.detune.value = detune;
+    o.connect(out);
+    o.start(now);
+    o.stop(now + 1.7);
   });
 }
 
@@ -43,6 +75,7 @@ function drawReed(r) {
   ctx.fill();
 }
 
+let running = false;
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#10222e';
@@ -59,7 +92,6 @@ function draw() {
   else running = false;
 }
 
-let running = false;
 function kick() {
   if (!running) { running = true; requestAnimationFrame(draw); }
 }
@@ -81,7 +113,7 @@ canvas.addEventListener('pointerdown', e => {
   const px = (e.clientX - rect.left) * canvas.width / rect.width;
   const py = (e.clientY - rect.top) * canvas.height / rect.height;
   const r = reedAt(px, py);
-  if (r) { r.wiggle = 1; kick(); }
+  if (r) { r.wiggle = 1; hum(r.freq); kick(); }
 });
 
 draw();
